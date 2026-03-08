@@ -1,0 +1,72 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather App</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=7" />
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <h1>SkyCast</h1>
+      <p>Real-time weather and 7-day outlook.</p>
+    </header>
+
+    <section class="controls" aria-label="Weather search controls">
+      <form id="search-form" class="search-row">
+        <label for="country-select" class="sr-only">Select country</label>
+        <select id="country-select" required>
+          <option value="">Select country</option>
+        </select>
+
+        <label for="state-select" class="sr-only">Select state</label>
+        <select id="state-select" required disabled>
+          <option value="">Select state</option>
+        </select>
+
+        <button type="submit">Search</button>
+      </form>
+      <button id="location-btn" class="secondary" type="button">Use My Location</button>
+    </section>
+
+    <section id="status" class="status" aria-live="polite">Loading countries...</section>
+
+    <section id="weather-card" class="weather-card hidden" aria-label="Current weather">
+      <div>
+        <h2 id="city-name">--</h2>
+        <p id="timestamp">--</p>
+      </div>
+      <div class="temp-block">
+        <p id="temp">--&deg;C</p>
+        <p id="condition">--</p>
+      </div>
+      <div class="meta-grid">
+        <div>
+          <span>Feels like</span>
+          <strong id="feels-like">--&deg;C</strong>
+        </div>
+        <div>
+          <span>Wind</span>
+          <strong id="wind">-- km/h</strong>
+        </div>
+        <div>
+          <span>Humidity</span>
+          <strong id="humidity">--%</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="forecast-wrap hidden" id="forecast-wrap" aria-label="7 day forecast">
+      <h3>7-Day Forecast</h3>
+      <div id="forecast" class="forecast"></div>
+    </section>
+  </main>
+
+  <script src="app.js?v=8"></script>
+</body>
+</html>
