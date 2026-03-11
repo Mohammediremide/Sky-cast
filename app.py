@@ -1,16 +1,22 @@
-﻿import os
+import os
+from datetime import datetime, timezone
 
 import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WEATHERAPI_URL = "https://api.weatherapi.com/v1/forecast.json"
+OPENWEATHER_GEO_URL = "https://api.openweathermap.org/geo/1.0/direct"
+OPENWEATHER_REVERSE_URL = "https://api.openweathermap.org/geo/1.0/reverse"
+OPENWEATHER_WEATHER_URL = "https://api.openweathermap.org/data/2.5/weather"
+OPENWEATHER_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
 COUNTRIESNOW_STATES_URL = "https://countriesnow.space/api/v0.1/countries/states"
+COUNTRIESNOW_CITIES_URL = "https://countriesnow.space/api/v0.1/countries/state/cities"
+COUNTRIESNOW_CITIES_QUERY_URL = "https://countriesnow.space/api/v0.1/countries/state/cities/q"
 COUNTRIESNOW_COUNTRIES_URL = "https://countriesnow.space/api/v0.1/countries/positions"
 RESTCOUNTRIES_URL = "https://restcountries.com/v3.1/all?fields=name,cca2"
 
-load_dotenv()
+load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path="")
 
@@ -25,7 +31,11 @@ FALLBACK_COUNTRIES = [
 
 
 def _api_key() -> str:
-    return (os.getenv("WEATHERAPI_KEY", "") or os.getenv("\ufeffWEATHERAPI_KEY", "")).strip()
+    return (
+        os.getenv("OPENWEATHER_API_KEY", "")
+        or os.getenv("OPENWEATHER_KEY", "")
+        or os.getenv("\ufeffOPENWEATHER_API_KEY", "")
+    ).strip()
 
 
 def _error(message: str, code: int = 400):
@@ -87,40 +97,144 @@ def _fetch_countries():
     return FALLBACK_COUNTRIES
 
 
-def _fetch_forecast(query: str):
+def _fetch_location_by_query(query: str):
     api_key = _api_key()
     if not api_key:
         return None, _error(
-            "Server is missing WEATHERAPI_KEY. Add it to your .env file and restart app.py.",
+            "Server is missing OPENWEATHER_API_KEY. Add it to your .env file and restart app.py.",
             500,
         )
 
-    res = requests.get(
-        WEATHERAPI_URL,
-        params={
-            "key": api_key,
-            "q": query,
-            "days": 7,
-            "aqi": "no",
-            "alerts": "no",
-        },
-        timeout=10,
-    )
-
-    if res.status_code == 400:
-        try:
-            provider_message = res.json().get("error", {}).get("message")
-        except ValueError:
-            provider_message = None
-        return None, _error(provider_message or "Location not found.", 404)
+    try:
+        res = requests.get(
+            OPENWEATHER_GEO_URL,
+            params={"q": query, "limit": 1, "appid": api_key},
+            timeout=10,
+        )
+    except requests.RequestException:
+        return None, _error("Failed to reach OpenWeather geocoding.", 502)
 
     if res.status_code in (401, 403):
-        return None, _error("WeatherAPI key is invalid or unauthorized.", 502)
+        return None, _error("OpenWeather API key is invalid or unauthorized.", 502)
 
     if res.status_code != 200:
-        return None, _error("Failed to fetch weather from WeatherAPI.", 502)
+        return None, _error("Failed to fetch location from OpenWeather.", 502)
 
-    return res.json(), None
+    try:
+        data = res.json()
+    except ValueError:
+        return None, _error("Unexpected response from OpenWeather.", 502)
+
+    if not data:
+        return None, _error("Location not found.", 404)
+
+    return data[0], None
+
+
+def _fetch_location_by_coords(lat: float, lon: float):
+    api_key = _api_key()
+    if not api_key:
+        return None, _error(
+            "Server is missing OPENWEATHER_API_KEY. Add it to your .env file and restart app.py.",
+            500,
+        )
+
+    try:
+        res = requests.get(
+            OPENWEATHER_REVERSE_URL,
+            params={"lat": lat, "lon": lon, "limit": 1, "appid": api_key},
+            timeout=10,
+        )
+    except requests.RequestException:
+        return None, _error("Failed to reach OpenWeather reverse geocoding.", 502)
+
+    if res.status_code in (401, 403):
+        return None, _error("OpenWeather API key is invalid or unauthorized.", 502)
+
+    if res.status_code != 200:
+        return None, _error("Failed to reverse geocode location.", 502)
+
+    try:
+        data = res.json()
+    except ValueError:
+        return None, _error("Unexpected response from OpenWeather.", 502)
+
+    if not data:
+        return None, None
+
+    return data[0], None
+
+
+def _fetch_forecast(lat: float, lon: float):
+    api_key = _api_key()
+    if not api_key:
+        return None, _error(
+            "Server is missing OPENWEATHER_API_KEY. Add it to your .env file and restart app.py.",
+            500,
+        )
+
+    try:
+        res_current = requests.get(
+            OPENWEATHER_WEATHER_URL,
+            params={"lat": lat, "lon": lon, "units": "metric", "appid": api_key},
+            timeout=10,
+        )
+        res_forecast = requests.get(
+            OPENWEATHER_FORECAST_URL,
+            params={"lat": lat, "lon": lon, "units": "metric", "appid": api_key},
+            timeout=10,
+        )
+    except requests.RequestException:
+        return None, _error("Failed to reach OpenWeather forecast service.", 502)
+
+    if res_current.status_code in (401, 403) or res_forecast.status_code in (401, 403):
+        return None, _error("OpenWeather API key is invalid or unauthorized.", 502)
+
+    if res_current.status_code != 200 or res_forecast.status_code != 200:
+        return None, _error("Failed to fetch weather from OpenWeather.", 502)
+
+    try:
+        data_current = res_current.json()
+        data_forecast = res_forecast.json()
+    except ValueError:
+        return None, _error("Unexpected response from OpenWeather.", 502)
+
+    daily_data = {}
+    for item in data_forecast.get("list", []):
+        dt_txt = item.get("dt_txt", "").split(" ")[0]
+        if dt_txt not in daily_data:
+            daily_data[dt_txt] = {
+                "dt": item.get("dt"),
+                "temp_min": item.get("main", {}).get("temp_min", 0),
+                "temp_max": item.get("main", {}).get("temp_max", 0),
+                "weather": item.get("weather", [])
+            }
+        else:
+            daily_data[dt_txt]["temp_min"] = min(daily_data[dt_txt]["temp_min"], item.get("main", {}).get("temp_min", 0))
+            daily_data[dt_txt]["temp_max"] = max(daily_data[dt_txt]["temp_max"], item.get("main", {}).get("temp_max", 0))
+
+    daily_list = []
+    for dt_txt in sorted(daily_data.keys()):
+        day_info = daily_data[dt_txt]
+        daily_list.append({
+            "dt": day_info["dt"],
+            "temp": {"min": day_info["temp_min"], "max": day_info["temp_max"]},
+            "weather": day_info["weather"]
+        })
+
+    combined_data = {
+        "current": {
+            "dt": data_current.get("dt", 0),
+            "temp": data_current.get("main", {}).get("temp", 0),
+            "feels_like": data_current.get("main", {}).get("feels_like", 0),
+            "humidity": data_current.get("main", {}).get("humidity", 0),
+            "wind_speed": data_current.get("wind", {}).get("speed", 0),
+            "weather": data_current.get("weather", [])
+        },
+        "daily": daily_list
+    }
+
+    return combined_data, None
 
 
 def _fetch_states(country_name: str):
@@ -146,38 +260,103 @@ def _fetch_states(country_name: str):
     return sorted(set(state_names))
 
 
-def _build_payload(data):
-    location = data.get("location", {})
+def _extract_cities(payload):
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and isinstance(data.get("cities"), list):
+            return data.get("cities")
+    return []
+
+
+def _fetch_cities(country_name: str, state_name: str):
+    try:
+        res = requests.post(
+            COUNTRIESNOW_CITIES_URL,
+            json={"country": country_name, "state": state_name},
+            timeout=12,
+        )
+    except requests.RequestException:
+        res = None
+
+    payload = None
+    if res is not None and res.status_code == 200:
+        try:
+            payload = res.json()
+        except ValueError:
+            payload = None
+
+    cities = _extract_cities(payload) if payload else []
+
+    if cities:
+        return sorted(set([str(city).strip() for city in cities if str(city).strip()])), None
+
+    try:
+        res = requests.get(
+            COUNTRIESNOW_CITIES_QUERY_URL,
+            params={"country": country_name, "state": state_name},
+            timeout=12,
+        )
+    except requests.RequestException:
+        return [], None
+
+    if res.status_code != 200:
+        return [], None
+
+    try:
+        payload = res.json()
+    except ValueError:
+        return [], None
+
+    cities = _extract_cities(payload)
+    return sorted(set([str(city).strip() for city in cities if str(city).strip()])), None
+
+
+def _format_date(ts: int) -> str:
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+
+
+def _build_payload(location, data):
     current = data.get("current", {})
-    forecast_days = data.get("forecast", {}).get("forecastday", [])
+    daily = data.get("daily", [])
 
     forecast = []
-    for day in forecast_days:
-        day_info = day.get("day", {})
+    for day in daily[:5]:
+        temp = day.get("temp", {})
+        weather_list = day.get("weather", [])
+        condition = weather_list[0].get("description") if weather_list else "Unknown"
         forecast.append(
             {
-                "date": day.get("date"),
-                "temp_max": round(day_info.get("maxtemp_c", 0)),
-                "temp_min": round(day_info.get("mintemp_c", 0)),
-                "condition": day_info.get("condition", {}).get("text", "Unknown"),
+                "date": _format_date(day.get("dt", 0)),
+                "temp_max": round(temp.get("max", 0)),
+                "temp_min": round(temp.get("min", 0)),
+                "condition": condition.title() if isinstance(condition, str) else "Unknown",
             }
         )
+
+    weather_list = current.get("weather", [])
+    current_condition = weather_list[0].get("description") if weather_list else "Unknown"
+    wind_kmh = round((current.get("wind_speed", 0) or 0) * 3.6)
 
     return {
         "location": {
             "name": location.get("name", "Unknown"),
+            "state": location.get("state", ""),
             "country": location.get("country", ""),
             "country_name": location.get("country", ""),
             "lat": location.get("lat"),
             "lon": location.get("lon"),
         },
         "current": {
-            "timestamp": current.get("last_updated_epoch", 0),
-            "temp": round(current.get("temp_c", 0)),
-            "feels_like": round(current.get("feelslike_c", 0)),
+            "timestamp": current.get("dt", 0),
+            "temp": round(current.get("temp", 0)),
+            "feels_like": round(current.get("feels_like", 0)),
             "humidity": current.get("humidity", 0),
-            "wind_kmh": round(current.get("wind_kph", 0)),
-            "condition": current.get("condition", {}).get("text", "Unknown"),
+            "wind_kmh": wind_kmh,
+            "condition": current_condition.title()
+            if isinstance(current_condition, str)
+            else "Unknown",
         },
         "forecast": forecast,
     }
@@ -189,6 +368,12 @@ def set_no_cache_headers(response):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    app.logger.exception("Unhandled error: %s", error)
+    return _error("Unexpected server error. Check server logs.", 500)
 
 
 @app.route("/")
@@ -211,6 +396,24 @@ def states_by_country():
     return jsonify({"states": states})
 
 
+@app.route("/api/cities")
+def cities_by_state():
+    country_name = (request.args.get("country_name") or "").strip()
+    state_name = (request.args.get("state") or "").strip()
+
+    if not country_name:
+        return _error("Query parameter 'country_name' is required.")
+
+    if not state_name:
+        return _error("Query parameter 'state' is required.")
+
+    cities, err = _fetch_cities(country_name, state_name)
+    if err:
+        return err
+
+    return jsonify({"cities": cities})
+
+
 @app.route("/api/weather")
 def weather_by_city():
     city = (request.args.get("city") or "").strip()
@@ -230,12 +433,15 @@ def weather_by_city():
         location_parts.append(country_code)
 
     query = ", ".join(location_parts)
-
-    data, err = _fetch_forecast(query)
+    location, err = _fetch_location_by_query(query)
     if err:
         return err
 
-    return jsonify(_build_payload(data))
+    data, err = _fetch_forecast(location.get("lat"), location.get("lon"))
+    if err:
+        return err
+
+    return jsonify(_build_payload(location, data))
 
 
 @app.route("/api/weather/coords")
@@ -252,13 +458,20 @@ def weather_by_coords():
     except ValueError:
         return _error("Latitude and longitude must be valid numbers.")
 
-    data, err = _fetch_forecast(f"{lat_val},{lon_val}")
+    location, err = _fetch_location_by_coords(lat_val, lon_val)
     if err:
         return err
 
-    return jsonify(_build_payload(data))
+    data, err = _fetch_forecast(lat_val, lon_val)
+    if err:
+        return err
+
+    location = location or {"name": "Your location", "country": ""}
+    location.setdefault("lat", lat_val)
+    location.setdefault("lon", lon_val)
+
+    return jsonify(_build_payload(location, data))
 
 
 if __name__ == "__main__":
     app.run(debug=False, host="127.0.0.1", port=5000)
-

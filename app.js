@@ -1,6 +1,7 @@
-﻿const form = document.getElementById("search-form");
+const form = document.getElementById("search-form");
 const countrySelect = document.getElementById("country-select");
 const stateSelect = document.getElementById("state-select");
+const citySelect = document.getElementById("city-select");
 const locationBtn = document.getElementById("location-btn");
 const statusEl = document.getElementById("status");
 
@@ -24,7 +25,7 @@ function setStatus(message, type = "") {
 }
 
 function setLoading(loading) {
-  const controls = [form.querySelector("button"), locationBtn, countrySelect, stateSelect];
+  const controls = [form.querySelector("button"), locationBtn, countrySelect, stateSelect, citySelect];
   controls.forEach((control) => {
     control.disabled = loading;
   });
@@ -47,9 +48,16 @@ async function getJSON(url) {
   return data;
 }
 
+function resetCities() {
+  citySelect.innerHTML = '<option value="">Select city</option>';
+  citySelect.disabled = true;
+  citySelect.classList.add("hidden");
+}
+
 function resetStates() {
   stateSelect.innerHTML = '<option value="">Select state</option>';
   stateSelect.disabled = true;
+  resetCities();
 }
 
 async function loadStatesForCountry() {
@@ -84,9 +92,50 @@ async function loadStatesForCountry() {
 
     stateSelect.appendChild(fragment);
     stateSelect.disabled = false;
-    setStatus("Select a state, then search.");
+    setStatus("Select a state to load cities.");
   } catch {
     setStatus("Could not load states for this country.", "error");
+  }
+}
+
+async function loadCitiesForState() {
+  const countryName = countrySelect.options[countrySelect.selectedIndex]?.textContent?.trim() || "";
+  const stateName = stateSelect.value.trim();
+
+  resetCities();
+
+  if (!stateName) {
+    setStatus("Select a state to load cities.");
+    return;
+  }
+
+  setStatus("Loading cities...");
+
+  try {
+    const payload = await getJSON(
+      `/api/cities?country_name=${encodeURIComponent(countryName)}&state=${encodeURIComponent(stateName)}`
+    );
+    const cities = payload.cities || [];
+
+    if (!cities.length) {
+      setStatus("No cities found for this state.", "error");
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    cities.forEach((name) => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      fragment.appendChild(option);
+    });
+
+    citySelect.appendChild(fragment);
+    citySelect.disabled = false;
+    citySelect.classList.remove("hidden");
+    setStatus("Select a city, then search.");
+  } catch (error) {
+    setStatus(error.message || "Could not load cities for this state.", "error");
   }
 }
 
@@ -165,7 +214,7 @@ async function loadWeather(url) {
     renderCurrent(payload);
     renderForecast(payload);
 
-    if (payload.forecast.length < 7) {
+    if (payload.forecast.length < 5) {
       setStatus(`Weather updated. Provider returned ${payload.forecast.length} day(s) on your plan.`, "success");
     } else {
       setStatus("Weather updated successfully.", "success");
@@ -183,6 +232,7 @@ form.addEventListener("submit", async (event) => {
   const countryCode = countrySelect.value.trim();
   const countryName = countrySelect.options[countrySelect.selectedIndex]?.textContent?.trim() || "";
   const state = stateSelect.value.trim();
+  const city = citySelect.value.trim();
 
   if (!countryCode) {
     setStatus("Select a country.", "error");
@@ -194,11 +244,17 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  const query = new URLSearchParams({ city: state, state, country: countryCode, country_name: countryName });
+  if (!city) {
+    setStatus("Select a city.", "error");
+    return;
+  }
+
+  const query = new URLSearchParams({ city, state, country: countryCode, country_name: countryName });
   await loadWeather(`/api/weather?${query.toString()}`);
 });
 
 countrySelect.addEventListener("change", loadStatesForCountry);
+stateSelect.addEventListener("change", loadCitiesForState);
 
 locationBtn.addEventListener("click", () => {
   if (!navigator.geolocation) {

@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -14,7 +14,7 @@
   <main class="app">
     <header class="hero">
       <h1>SkyCast</h1>
-      <p>Real-time weather and 7-day outlook.</p>
+      <p>Real-time weather and 5-day outlook.</p>
     </header>
 
     <section class="controls" aria-label="Weather search controls">
@@ -27,6 +27,11 @@
         <label for="state-select" class="sr-only">Select state</label>
         <select id="state-select" required disabled>
           <option value="">Select state</option>
+        </select>
+
+        <label for="city-select" class="sr-only">Select city</label>
+        <select id="city-select" class="hidden" required disabled>
+          <option value="">Select city</option>
         </select>
 
         <button type="submit">Search</button>
@@ -61,8 +66,8 @@
       </div>
     </section>
 
-    <section class="forecast-wrap hidden" id="forecast-wrap" aria-label="7 day forecast">
-      <h3>7-Day Forecast</h3>
+    <section class="forecast-wrap hidden" id="forecast-wrap" aria-label="5 day forecast">
+      <h3>5-Day Forecast</h3>
       <div id="forecast" class="forecast"></div>
     </section>
   </main>

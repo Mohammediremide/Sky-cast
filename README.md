@@ -1,9 +1,10 @@
-﻿# SkyCast Weather App (Flask + WeatherAPI)
+# SkyCast Weather App (Flask + OpenWeather + CountriesNow)
 
 This app supports:
 - live current weather
-- 7-day forecast
+- 5-day forecast
 - country selector with countries worldwide
+- state selector with cities dropdown
 
 ## 1) Create virtual environment
 
@@ -23,10 +24,12 @@ python -m venv .venv
 2. Set your key:
 
 ```text
-WEATHERAPI_KEY=your_real_key
+OPENWEATHER_API_KEY=your_real_key
 ```
 
-Get a free key from: https://www.weatherapi.com/
+Notes:
+- OpenWeather One Call 3.0 must be enabled on your plan.
+- CountriesNow is used for countries, states, and cities (no key required).
 
 ## 4) Run the app
 
