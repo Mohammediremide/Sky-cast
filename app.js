@@ -16,6 +16,7 @@ const conditionEl = document.getElementById("condition");
 const feelsLikeEl = document.getElementById("feels-like");
 const windEl = document.getElementById("wind");
 const humidityEl = document.getElementById("humidity");
+const weatherSummaryEl = document.getElementById("weather-summary");
 
 const DEG = String.fromCharCode(176);
 
@@ -175,7 +176,54 @@ function renderCurrent(payload) {
   feelsLikeEl.textContent = `${current.feels_like}${DEG}C`;
   windEl.textContent = `${current.wind_kmh} km/h`;
   humidityEl.textContent = `${current.humidity}%`;
+  
+  // Set weather interpretation
+  const temp = (current.temp);
+  const condition = (current.condition || "").toLowerCase();
+  
+  let summary = "";
+  let icon = "☀️";
+  
+  if (condition.includes("thunderstorm")) {
+    summary = "It's stormy outside! ⛈️";
+    icon = "⛈️";
+  } else if (condition.includes("rain") || condition.includes("drizzle")) {
+    summary = "It's raining! Better take an umbrella. 🌧️";
+    icon = "🌧️";
+  } else if (condition.includes("snow")) {
+    summary = "It's snowing! Wear something warm. ❄️";
+    icon = "❄️";
+  } else if (condition.includes("cloud")) {
+    summary = "It's a bit cloudy. ☁️";
+    icon = "☁️";
+  } else if (condition.includes("clear")) {
+    summary = "The sky is clear and bright. ☀️";
+    icon = "☀️";
+  } else if (condition.includes("mist") || condition.includes("fog") || condition.includes("haze")) {
+    summary = "It's quite foggy out there. 🌫️";
+    icon = "🌫️";
+  } else {
+    summary = "The weather is currently " + condition + ".";
+  }
+  
+  // Temperature based descriptive words
+  if (temp >= 35) {
+    summary += " Watch out, it's scorching hot! 🔥";
+  } else if (temp >= 30) {
+    summary += " It's very hot today. Stay hydrated! 🥤";
+  } else if (temp >= 25) {
+    summary += " It's a lovely warm day. 😎";
+  } else if (temp >= 18) {
+    summary += " The temperature is nice and pleasant. 😊";
+  } else if (temp >= 10) {
+    summary += " It's a bit chilly, you might need a light jacket. 🧥";
+  } else if (temp >= 0) {
+    summary += " It's cold! Bundle up. 🧣";
+  } else {
+    summary += " It's freezing! Stay warm. 🧊";
+  }
 
+  weatherSummaryEl.textContent = summary;
   weatherCard.classList.remove("hidden");
 }
 
