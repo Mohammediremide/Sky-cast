@@ -178,52 +178,37 @@ function renderCurrent(payload) {
   humidityEl.textContent = `${current.humidity}%`;
   
   // Set weather interpretation
-  const temp = (current.temp);
+  const temp = Math.round(current.temp);
   const condition = (current.condition || "").toLowerCase();
   
-  let summary = "";
-  let icon = "☀️";
+  let simpleStatus = "";
   
   if (condition.includes("thunderstorm")) {
-    summary = "It's stormy outside! ⛈️";
-    icon = "⛈️";
+    simpleStatus = "It's Stormy! ⛈️";
   } else if (condition.includes("rain") || condition.includes("drizzle")) {
-    summary = "It's raining! Better take an umbrella. 🌧️";
-    icon = "🌧️";
+    simpleStatus = "It's Rainy! 🌧️ (Bring an umbrella)";
   } else if (condition.includes("snow")) {
-    summary = "It's snowing! Wear something warm. ❄️";
-    icon = "❄️";
+    simpleStatus = "It's Snowing! ❄️ (Stay warm)";
   } else if (condition.includes("cloud")) {
-    summary = "It's a bit cloudy. ☁️";
-    icon = "☁️";
+    simpleStatus = "It's Cloudy. ☁️";
   } else if (condition.includes("clear")) {
-    summary = "The sky is clear and bright. ☀️";
-    icon = "☀️";
+    simpleStatus = "It's Clear and Sunny. ☀️";
   } else if (condition.includes("mist") || condition.includes("fog") || condition.includes("haze")) {
-    summary = "It's quite foggy out there. 🌫️";
-    icon = "🌫️";
+    simpleStatus = "It's Foggy. 🌫️";
   } else {
-    summary = "The weather is currently " + condition + ".";
+    simpleStatus = "Weather is " + (current.condition || "Moderate") + ".";
   }
   
-  // Temperature based descriptive words
-  if (temp >= 35) {
-    summary += " Watch out, it's scorching hot! 🔥";
-  } else if (temp >= 30) {
-    summary += " It's very hot today. Stay hydrated! 🥤";
-  } else if (temp >= 25) {
-    summary += " It's a lovely warm day. 😎";
-  } else if (temp >= 18) {
-    summary += " The temperature is nice and pleasant. 😊";
-  } else if (temp >= 10) {
-    summary += " It's a bit chilly, you might need a light jacket. 🧥";
-  } else if (temp >= 0) {
-    summary += " It's cold! Bundle up. 🧣";
-  } else {
-    summary += " It's freezing! Stay warm. 🧊";
-  }
+  let tempStatus = "";
+  if (temp >= 35) tempStatus = "It is very HOT outside. 🔥";
+  else if (temp >= 28) tempStatus = "The weather is quite HOT. ☀️";
+  else if (temp >= 22) tempStatus = "It is WARM and comfortable. 😎";
+  else if (temp >= 15) tempStatus = "It's a bit COOL. 🧥";
+  else if (temp >= 5) tempStatus = "It is COLD! 🧣";
+  else tempStatus = "It is FREEZING! 🧊";
 
-  weatherSummaryEl.textContent = summary;
+  weatherSummaryEl.textContent = `${simpleStatus} ${tempStatus}`;
+  weatherSummaryEl.classList.remove("hidden");
   weatherCard.classList.remove("hidden");
 }
 
